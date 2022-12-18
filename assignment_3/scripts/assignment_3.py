@@ -6,7 +6,7 @@ import pickle
 from enum import Enum
 
 
-class Datasets(Enum):
+class Dataset(Enum):
     BEETHOVEN = 'Beethoven'
     MAT = 'mat_vase'
     SHINY = 'shiny_vase'
@@ -15,8 +15,8 @@ class Datasets(Enum):
     FACE = 'face'
 
 
-def main(ransac=False, savefig=False, unbiased_integrate=True):
-    dataset = Datasets.FACE.value
+def main(dataset: str = Dataset.BEETHOVEN.value, ransac=False, ransac_threshold=2., savefig=False, smooth=False,
+         unbiased_integrate=True):
     path = f'src/{dataset}_{"ransac" if ransac else "woodham"}'
 
     I, mask, S = ps_utils.read_data_file(dataset)
@@ -26,10 +26,10 @@ def main(ransac=False, savefig=False, unbiased_integrate=True):
     count_nz = len(nz[0])
 
     J = np.vstack([I[:, :, i][nz] for i in range(count_Is)])
+    print(J.shape)
     assert (J.shape == (count_Is, count_nz))
 
     if ransac:
-        ransac_threshold = 10.
         ransac_data = (J, S)
         M, inliers, fit = ps_utils.ransac_3dvector(ransac_data, ransac_threshold)
         pickle.dump((M, inliers, fit), open(f'src/ransac_runs/ransac_3dvector_{dataset}.sav', 'wb'))
@@ -60,6 +60,10 @@ def main(ransac=False, savefig=False, unbiased_integrate=True):
     n3[nz] = N[2, :]
 
     _, (ax1, ax2, ax3) = plt.subplots(1, M.shape[0])
+
+    if smooth:
+        n1, n2, n3 = ps_utils.smooth_normal_field(n1, n2, n3, mask, iters=10)
+
     ax1.imshow(n1)
     ax1.set_title(r'N1')
     ax1.axis('off')
@@ -79,11 +83,14 @@ def main(ransac=False, savefig=False, unbiased_integrate=True):
         z = ps_utils.unbiased_integrate(n1, n2, n3, mask)
     else:
         z = ps_utils.simchony_integrate(n1, n2, n3, mask)
-    # z = ps_utils.simchony_integrate(n1, n2, n3, mask)
+
     ps_utils.display_surface(z)
 
 
 if __name__ == '__main__':
-    main(ransac=True,
+    main(dataset=Dataset.FACE.value,
+         ransac=True,
+         smooth=True,
          savefig=True,
+         ransac_threshold=10.,
          unbiased_integrate=True)
