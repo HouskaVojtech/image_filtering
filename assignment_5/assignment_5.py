@@ -2,7 +2,9 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 
+from collections import Counter
 from sklearn.cluster import KMeans
+from skimage.segmentation import chan_vese
 
 IMG_PATH = './src/'
 IMG_NAMES = ['camera', 'coins', 'rocksample', 'page']
@@ -24,8 +26,12 @@ def imshow_row(imgs, titles, suptitle=''):
     length = len(imgs)
     fig, axs = plt.subplots(1, length, figsize=(16, 9))
     for i, img in enumerate(imgs):
-        axs[i].imshow(img, cmap='gray')
-        axs[i].axis('off')
+        try:
+            axs[i].imshow(img, cmap='gray')
+            axs[i].axis('off')
+        except TypeError:
+            axs[i].plot(img)
+
         axs[i].set_title(titles[i])
     if suptitle:
         plt.suptitle(suptitle)
@@ -62,12 +68,70 @@ def run_otsu(img, plot=False):
     return th
 
 
+def cleaning_alg(img, nn=4, iterations=1, threshold=4):
+    cleaned_img = np.copy(img)
+    for it in range(iterations):
+        neighbours = []
+        for row in range(1, img.shape[0] - 1):
+            for col in range(1, img.shape[1] - 1):
+                if nn == 4:
+                    neighbours = [img[row - 1][col], img[row][col + 1], img[row + 1][col], img[row][col - 1]]
+                elif nn == 8:
+                    neighbours = [img[row - 1][col], img[row][col + 1], img[row + 1][col], img[row][col - 1],
+                                  img[row - 1][col + 1], img[row + 1][col + 1],
+                                  img[row + 1][col - 1], img[row - 1][col - 1]]
+                vote_count = Counter(neighbours[:threshold])
+                max_vote = sorted(vote_count.items(), key=lambda v: v[1])[-1]
+                cleaned_img[row][col] = max_vote[0]
+    return cleaned_img
+
+
+def run_cleaning(img, nn=4, it=1, threshold=4):
+    cleaned = cleaning_alg(img, nn, it, threshold)
+    imshow_row([img, cleaned], ["Original Image", "Cleaned Image"])
+
+
+def chan_vese_segmentation(img):
+    return chan_vese(img, mu=0.25, lambda1=1, lambda2=1, tol=1e-3,
+                     max_num_iter=200, dt=0.5, init_level_set="checkerboard",
+                     extended_output=True)
+
+
+def run_chan_vese(name):
+    img = imread(name)
+    cv = chan_vese_segmentation(img)
+
+    fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+    ax = axes.flatten()
+
+    ax[0].imshow(img, cmap="gray")
+    ax[0].set_axis_off()
+    ax[0].set_title("Original Image", fontsize=12)
+
+    ax[1].imshow(cv[0], cmap="gray")
+    ax[1].set_axis_off()
+    title = f'Chan-Vese segmentation - {len(cv[2])} iterations'
+    ax[1].set_title(title, fontsize=12)
+
+    ax[2].imshow(cv[1], cmap="gray")
+    ax[2].set_axis_off()
+    ax[2].set_title("Final Level Set", fontsize=12)
+
+    ax[3].plot(cv[2])
+    ax[3].set_title("Evolution of energy over iterations", fontsize=12)
+
+    fig.tight_layout()
+    plt.show()
+
+    return cv
+
+
 def run_example_img(name, k=2):
     assert name in IMG_NAMES + SECONDARY_IMG_NAMES
     img = imread(name)
     kmeans_segmented = run_kmeans(img, k, plot=True)
-    # otsu_segmented = run_otsu(img, plot=True)
-    # print(kmeans_segmented == otsu_segmented)
+    otsu_segmented = run_otsu(img, plot=True)
+    return kmeans_segmented, otsu_segmented
 
 
 def run_all_imgs():
@@ -80,7 +144,9 @@ def run_all_imgs():
 
 def main():
     # run_example_img(IMG_NAMES[0], 2)
-    run_all_imgs()
+    # run_all_imgs()
+    # run_cleaning(km, 8, 10, 8)
+    run_chan_vese(IMG_NAMES[0])
 
 
 if __name__ == '__main__':
