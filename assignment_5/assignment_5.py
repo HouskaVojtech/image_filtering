@@ -1,3 +1,5 @@
+import copy
+
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -69,20 +71,30 @@ def run_otsu(img, plot=False):
 
 
 def cleaning_alg(img, nn=4, iterations=1, threshold=4):
+    assert threshold <= nn
     cleaned_img = np.copy(img)
     for it in range(iterations):
-        neighbours = []
-        for row in range(1, img.shape[0] - 1):
-            for col in range(1, img.shape[1] - 1):
+        for row in range(1, cleaned_img.shape[0] - 1):
+            for col in range(1, cleaned_img.shape[1] - 1):
                 if nn == 4:
-                    neighbours = [img[row - 1][col], img[row][col + 1], img[row + 1][col], img[row][col - 1]]
+                    neighbours = [cleaned_img[row - 1][col],
+                                  cleaned_img[row][col + 1],
+                                  cleaned_img[row + 1][col],
+                                  cleaned_img[row][col - 1]]
                 elif nn == 8:
-                    neighbours = [img[row - 1][col], img[row][col + 1], img[row + 1][col], img[row][col - 1],
-                                  img[row - 1][col + 1], img[row + 1][col + 1],
-                                  img[row + 1][col - 1], img[row - 1][col - 1]]
-                vote_count = Counter(neighbours[:threshold])
-                max_vote = sorted(vote_count.items(), key=lambda v: v[1])[-1]
-                cleaned_img[row][col] = max_vote[0]
+                    neighbours = [cleaned_img[row - 1][col],
+                                  cleaned_img[row][col + 1],
+                                  cleaned_img[row + 1][col],
+                                  cleaned_img[row][col - 1],
+                                  cleaned_img[row - 1][col + 1],
+                                  cleaned_img[row + 1][col + 1],
+                                  cleaned_img[row + 1][col - 1],
+                                  cleaned_img[row - 1][col - 1]]
+                vote_count = Counter(neighbours)
+                max_votes = sorted(vote_count.items(), key=lambda v: v[1])
+                max_vote = max_votes[-1]
+                if max_vote[1] >= threshold and max_vote[0] != cleaned_img[row][col]:
+                    cleaned_img[row][col] = max_vote[0]
     return cleaned_img
 
 
@@ -145,8 +157,10 @@ def run_all_imgs():
 def main():
     # run_example_img(IMG_NAMES[0], 2)
     # run_all_imgs()
-    # run_cleaning(km, 8, 10, 8)
-    run_chan_vese(IMG_NAMES[0])
+    img = imread(IMG_NAMES[0])
+    km = run_kmeans(img)
+    run_cleaning(img=km, nn=8, it=10, threshold=4)
+    # run_chan_vese(IMG_NAMES[0])
 
 
 if __name__ == '__main__':
